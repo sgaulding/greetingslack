@@ -16,14 +16,16 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 ###VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU#####
 try:
-        MESSAGE = os.environ['WELCOME_MESSAGE']
-        TOKEN = os.environ['SLACK_TOKEN']
-        UNFURL = os.environ['UNFURL_LINKS']
-        DEBUG_CHANNEL_ID = os.environ.get('DEBUG_CHANNEL_ID', False)
+    MESSAGE = os.environ['WELCOME_MESSAGE']
+    TOKEN = os.environ['SLACK_TOKEN']
+    UNFURL = os.environ['UNFURL_LINKS']
+    DEBUG_CHANNEL_ID = os.environ.get('DEBUG_CHANNEL_ID', False)
 except:
-        MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
-        TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
-        UNFURL = 'FALSE'
+    MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
+    TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
+    UNFURL = 'FALSE'
+
+
 ###############################################################
 
 def is_team_join(msg):
@@ -42,7 +44,7 @@ def parse_join(message):
         x = x["channel"]["id"]
         logging.debug(x)
 
-        data = {
+        data_to_user = {
                 'token': TOKEN,
                 'channel': x,
                 'text': MESSAGE,
@@ -50,17 +52,28 @@ def parse_join(message):
                 'as_user': 'true',
                 }
 
-        logging.debug(data)
+        data_to_general = {
+                'token': TOKEN,
+                'channel': '#general',
+                'text': "Welcome " + m["user"],
+                'parse': 'full',
+                'as_user': 'true',
+                }
 
-        if (UNFURL.lower() == "false"):
-          data = data.update({'unfurl_link': 'false'})
+        logging.debug(data_to_user)
 
-        xx = requests.post("https://slack.com/api/chat.postMessage", data=data)
+        if UNFURL.lower() == "false":
+            data_to_user = data_to_user.update({'unfurl_link': 'false'})
+            data_to_general = data_to_user.update({'unfurl_link': 'false'})
+
+        post_to_user = requests.post("https://slack.com/api/chat.postMessage", data=data_to_user)
+        post_to_general = requests.post("https://slack.com/api/chat.postMessage", data=data_to_general)
+
         logging.debug('\033[91m' + "HELLO SENT TO " + m["user"]["id"] + '\033[0m')
 
-#Connects to Slacks and initiates socket handshake
+# Connects to Slacks and initiates socket handshake
 def start_rtm():
-    r = requests.get("https://slack.com/api/rtm.start?token="+TOKEN, verify=False)
+    r = requests.get("https://slack.com/api/rtm.start?token=" + TOKEN, verify=False)
     r = r.json()
     logging.info(r)
     r = r["url"]
@@ -82,6 +95,6 @@ def on_open(ws):
 if __name__ == "__main__":
     r = start_rtm()
     ws = websocket.WebSocketApp(r, on_message = on_message, on_error = on_error, on_close = on_close)
-    #ws.on_open
+    # ws.on_open
     ws.run_forever()
 
