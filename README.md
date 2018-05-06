@@ -46,4 +46,4 @@ Check the example below:
 
 ## Q3. How do I enable the debug channel?
 A3.
-In the environment variables set DEBUG_CHANNEL_ID to be the ID of your chosen debug channel. That's usually achieved by using `export DEBUG_CHANNEL_ID=<YOUR SLACK CHANNEL ID>` in your CLI. We suggest to make this channel private so not just anyone can join it.
+In the environment variables set DEBUG_CHANNEL_ID (or DEBUG_CHANNEL_NAME if you don't know the channel ID) to be the ID of your chosen debug channel. That's usually achieved by using `export DEBUG_CHANNEL_ID=<YOUR SLACK CHANNEL ID>` in your CLI. We suggest to make this channel private so not just anyone can join it.
