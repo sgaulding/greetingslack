@@ -163,6 +163,8 @@ def set_logging_level():
         'debug': logging.DEBUG,
         'notset': logging.NOTSET
     }
+
+    global LOGGING_LEVEL
     level = logging_level.get(LOGGING_LEVEL.lower(), logging.INFO)
     logging.getLogger().setLevel(level)
 
