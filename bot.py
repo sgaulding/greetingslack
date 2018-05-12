@@ -1,12 +1,13 @@
 import json
 import logging
-import os
 import sys
 
 import requests
 import websocket
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+from settings import get_env_variable
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,
@@ -16,40 +17,48 @@ logging.basicConfig(level=logging.INFO,
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # *****VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU*****
-try:
-    MESSAGE = os.environ['PERSONAL_WELCOME_MESSAGE_TO_USER']
-    TOKEN = os.environ['SLACK_TOKEN']
-    UNFURL = os.environ['UNFURL_LINKS']
-    LOGGING_LEVEL = os.environ.get('LOGGING_LEVEL', 'INFO')
-    DEBUG_CHANNEL_NAME = os.environ.get('DEBUG_CHANNEL_NAME', False)
-    DEBUG_CHANNEL_ID = os.environ.get('DEBUG_CHANNEL_ID', False)
-    WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME = os.environ['WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME']
-    WELCOME_USER_TO_GROUP_IN_CHANNEL_ID = os.environ.get('WELCOME_USER_TO_GROUP_IN_CHANNEL_ID', False)
-except KeyError:
-    MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
-    TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
-    UNFURL = 'FALSE'
-    DEBUG_CHANNEL_NAME = False
-    DEBUG_CHANNEL_ID = False
-    WELCOME_USER_TO_GROUP_IN_CHANNEL_ID = False
-    WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME = False
+
+
+MESSAGE = get_env_variable('PERSONAL_WELCOME_MESSAGE_TO_USER',
+                           'Manually set the Message if youre not running through heroku or have not set vars in ENV')
+BOT_TOKEN = get_env_variable('SLACK_BOT_TOKEN',
+                             'Manually set the BOT Token if not running through heroku or have not set vars in ENV')
+UNFURL = get_env_variable('UNFURL_LINKS', False)
+LOGGING_LEVEL = get_env_variable('LOGGING_LEVEL', 'INFO')
+DEBUG_CHANNEL_NAME = get_env_variable('DEBUG_CHANNEL_NAME', False)
+DEBUG_CHANNEL_ID = get_env_variable('DEBUG_CHANNEL_ID', False)
+WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME = get_env_variable('WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME', False)
+WELCOME_USER_TO_GROUP_IN_CHANNEL_ID = get_env_variable('WELCOME_USER_TO_GROUP_IN_CHANNEL_ID', False)
 
 
 ###################################################################
 
 
 def get_channel_id_by_name(name):
-    if name.isspace():
+    if not name or name.isspace():
         return False
 
-    channel_response = requests.get("https://slack.com/api/channels.list?token=" + TOKEN).json()
-    logging.debug(channel_response)
-    channels = channel_response['channels']
     channel_id = ''
-    for channel in channels:
+
+    channel_list_url = "https://slack.com/api/channels.list?exclude_members=1&token=" + BOT_TOKEN
+    channel_list_response = requests.post(channel_list_url).json()
+    logging.debug(channel_list_response)
+    private_channels = channel_list_response['channels']
+    for channel in private_channels:
         if channel['name'].lower() == name.lower():
             channel_id = channel['id']
             break
+
+    if not channel_id:
+        channel_private_url = "https://slack.com/api/groups.list?exclude_members=1&exclude_archived=1&token=" + BOT_TOKEN
+        channel_private_response = requests.post(channel_private_url).json()
+        logging.debug(channel_private_response)
+        private_channels = channel_private_response['groups']
+        for channel in private_channels:
+            if channel['name'].lower() == name.lower():
+                channel_id = channel['id']
+                break
+
     return channel_id
 
 
@@ -64,8 +73,10 @@ def is_debug_channel_join(msg):
     global DEBUG_CHANNEL_ID
     if not DEBUG_CHANNEL_ID:
         DEBUG_CHANNEL_ID = get_channel_id_by_name(DEBUG_CHANNEL_NAME)
+        logging.debug('Test Channel ID: [' + DEBUG_CHANNEL_ID + ']')
 
-    return msg['type'] == "member_joined_channel" and msg['channel'] == DEBUG_CHANNEL_ID and msg['channel_type'] == 'C'
+    return msg['type'] == "member_joined_channel" and msg['channel'] == DEBUG_CHANNEL_ID \
+        and (msg['channel_type'] == 'C' or msg['channel_type'] == 'G')
 
 
 def get_user_name_from_id(user_id):
@@ -73,7 +84,7 @@ def get_user_name_from_id(user_id):
         return 'New Member'
 
     data = {
-        'token': TOKEN,
+        'token': BOT_TOKEN,
         'user': user_id
     }
 
@@ -87,13 +98,13 @@ def parse_join(message):
     if is_team_join(m) or is_debug_channel_join(m):
         user_id = m["user"]["id"] if is_team_join(m) else m["user"]
         logging.debug(m)
-        x = requests.get("https://slack.com/api/im.open?token=" + TOKEN + "&user=" + user_id)
+        x = requests.get("https://slack.com/api/im.open?token=" + BOT_TOKEN + "&user=" + user_id)
         x = x.json()
         x = x["channel"]["id"]
         logging.debug(x)
 
         data_to_user = {
-            'token': TOKEN,
+            'token': BOT_TOKEN,
             'channel': x,
             'text': MESSAGE,
             'parse': 'full',
@@ -103,13 +114,14 @@ def parse_join(message):
 
         logging.debug(data_to_user)
         post_to_user = requests.post("https://slack.com/api/chat.postMessage", data=data_to_user)
-        logging.debug('\033[91m' + "HELLO SENT TO " + user_id + '\033[0m')
+        logging.debug('\033[91m' + "PERSONAL HELLO SENT TO " + user_id + '\033[0m')
         logging.debug(post_to_user.json())
 
         global WELCOME_USER_TO_GROUP_IN_CHANNEL_ID
         if not WELCOME_USER_TO_GROUP_IN_CHANNEL_ID:
             welcome_to_group_channel_id = get_channel_id_by_name(WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME)
             WELCOME_USER_TO_GROUP_IN_CHANNEL_ID = welcome_to_group_channel_id
+            logging.debug('Welcome Group Channel ID: [' + WELCOME_USER_TO_GROUP_IN_CHANNEL_ID + ']')
         else:
             welcome_to_group_channel_id = WELCOME_USER_TO_GROUP_IN_CHANNEL_ID
 
@@ -117,7 +129,7 @@ def parse_join(message):
             user_name = get_user_name_from_id(user_id)
 
             data_to_channel = {
-                'token': TOKEN,
+                'token': BOT_TOKEN,
                 'channel': welcome_to_group_channel_id,
                 'text': "Welcome @" + user_name,
                 'parse': 'full',
@@ -127,11 +139,12 @@ def parse_join(message):
 
             post_to_channel = requests.post("https://slack.com/api/chat.postMessage", data=data_to_channel)
             logging.debug(post_to_channel.json())
+            logging.debug('\033[91m' + "WELCOME SENT SENT TO " + user_name + '\033[0m')
 
 
 # Connects to Slacks and initiates socket handshake
 def start_rtm():
-    start_request = requests.get("https://slack.com/api/rtm.start?token=" + TOKEN, verify=False)
+    start_request = requests.get("https://slack.com/api/rtm.connect?token=" + BOT_TOKEN, verify=False)
     start_request = start_request.json()
     logging.info(start_request)
     start_request = start_request["url"]
@@ -163,6 +176,8 @@ def set_logging_level():
         'debug': logging.DEBUG,
         'notset': logging.NOTSET
     }
+
+    global LOGGING_LEVEL
     level = logging_level.get(LOGGING_LEVEL.lower(), logging.INFO)
     logging.getLogger().setLevel(level)
 
