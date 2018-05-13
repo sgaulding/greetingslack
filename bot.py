@@ -182,9 +182,22 @@ def set_logging_level():
     logging.getLogger().setLevel(level)
 
 
+def log_global_variables():
+    logging.debug("Message:" + str(MESSAGE))
+    logging.debug("Token: " + str(BOT_TOKEN))
+    logging.debug("Unfer: " + str(UNFURL))
+    logging.debug("Logging Leve: " + str(LOGGING_LEVEL))
+
+    logging.debug("Debug Channel Name: " + str(DEBUG_CHANNEL_NAME))
+    logging.debug("Debug Channel ID: " + str(DEBUG_CHANNEL_ID))
+    logging.debug("Welcome Channel Name: " + str(WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME))
+    logging.debug("Welcome Channel ID: " + str(WELCOME_USER_TO_GROUP_IN_CHANNEL_ID))
+
+
 if __name__ == "__main__":
     set_logging_level()
     r = start_rtm()
     web_socket_app = websocket.WebSocketApp(r, on_message=on_message, on_error=on_error, on_close=on_close)
     # web_socket_app.on_open
+    log_global_variables()
     web_socket_app.run_forever()
