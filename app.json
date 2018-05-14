@@ -9,7 +9,7 @@
   "website": "https://github.com/orliesaurus/greetingslack",
   "repository": "https://github.com/orliesaurus/greetingslack",
   "env": {
-    "SLACK_TOKEN": {
+    "SLACK_BOT_TOKEN": {
       "description": "Your Slack API Token",
       "value": "1234-12314123123-123123123",
       "required": "true"
@@ -18,9 +18,29 @@
       "description": "We UNFURL only the last link by default, trust me its good",
       "value": "true"
     },
-    "WELCOME_MESSAGE": {
+    "PERSONAL_WELCOME_MESSAGE_TO_USER": {
       "description": "Your Welcome message string",
       "value": "A personalized welcome msg that is broadcasted to your Slack Users"
+    },
+    "LOGGING_LEVEL": {
+      "description": "The level of that is outputted to the logs",
+      "value": "CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET"
+    },
+    "DEBUG_CHANNEL_NAME": {
+      "description": "Channel name that can be used to test message when a person join the channel",
+      "value": "test or empty"
+    },
+    "DEBUG_CHANNEL_ID": {
+      "description": "Channel ID that can be used to test message when a person join the channel",
+      "value": "Slack Channel ID or empty"
+    },
+    "WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME": {
+      "description": "Channel name to posted welcome to let work space know a new user has joined",
+      "value": "general"
+    },
+    "WELCOME_USER_TO_GROUP_IN_CHANNEL_ID": {
+      "description": "Channel ID to posted welcome to let work space know a new user has joined",
+      "value": "Slack Channel ID or empty"
     }
   }
 }
