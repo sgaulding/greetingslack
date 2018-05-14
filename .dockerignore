@@ -1,8 +1,11 @@
-/.idea/
-/.vs/
-/venv/
-/.env
-
+.git
+.DS_Store
+.gitignore
+.idea
+.vs
+venv
+.env
+Procfile
 *.pyc
 
-.vagrant/
+.vagrant
