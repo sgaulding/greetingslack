@@ -5,7 +5,9 @@ import sys
 import requests
 import websocket
 
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+logging.basicConfig(level=logging.DEBUG,
+        stream=sys.stdout)
 
 from settings import get_env_variable
 
@@ -16,7 +18,7 @@ logging.basicConfig(level=logging.INFO,
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
-# *****VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU*****
+###VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU#####
 
 
 MESSAGE = get_env_variable('PERSONAL_WELCOME_MESSAGE_TO_USER',
@@ -69,7 +71,7 @@ def is_team_join(msg):
 def is_debug_channel_join(msg):
     if not DEBUG_CHANNEL_NAME:
         return False
-
+        
     global DEBUG_CHANNEL_ID
     if not DEBUG_CHANNEL_ID:
         DEBUG_CHANNEL_ID = get_channel_id_by_name(DEBUG_CHANNEL_NAME)
@@ -78,6 +80,21 @@ def is_debug_channel_join(msg):
     return msg['type'] == "member_joined_channel" and msg['channel'] == DEBUG_CHANNEL_ID \
         and (msg['channel_type'] == 'C' or msg['channel_type'] == 'G')
 
+def is_direct_message(msg):
+    print(msg)
+    is_bot = False
+    if 'bot_id' in msg:
+        is_bot = True
+    return msg['type'] == "message" and msg['channel'][0] == 'D' and not is_bot
+
+def get_display_name(user_id):
+    logging.debug('FINDING USER WITH ID'+user_id)
+    users = requests.get("https://slack.com/api/users.list?token="+TOKEN)
+    users = users.json()
+
+    for item in users['members']:
+        if user_id == item['id']:
+            return item['real_name']
 
 def get_user_name_from_id(user_id):
     if user_id.isspace():
@@ -98,57 +115,52 @@ def parse_join(message):
     if is_team_join(m) or is_debug_channel_join(m):
         user_id = m["user"]["id"] if is_team_join(m) else m["user"]
         logging.debug(m)
-        x = requests.get("https://slack.com/api/im.open?token=" + BOT_TOKEN + "&user=" + user_id)
-        x = x.json()
-        x = x["channel"]["id"]
-        logging.debug(x)
+        conversation = requests.post("https://slack.com/api/conversations.open?token=" + TOKEN + "&users=" + user_id,
+                          data=None).json()
+        conversation_channel = conversation["channel"]["id"]
+        logging.debug(conversation_channel)
 
-        data_to_user = {
-            'token': BOT_TOKEN,
-            'channel': x,
-            'text': MESSAGE,
-            'parse': 'full',
-            'as_user': 'true',
-            'unfurl_link': UNFURL.lower()
-        }
-
-        logging.debug(data_to_user)
-        post_to_user = requests.post("https://slack.com/api/chat.postMessage", data=data_to_user)
-        logging.debug('\033[91m' + "PERSONAL HELLO SENT TO " + user_id + '\033[0m')
-        logging.debug(post_to_user.json())
-
-        global WELCOME_USER_TO_GROUP_IN_CHANNEL_ID
-        if not WELCOME_USER_TO_GROUP_IN_CHANNEL_ID:
-            welcome_to_group_channel_id = get_channel_id_by_name(WELCOME_USER_TO_GROUP_IN_CHANNEL_NAME)
-            WELCOME_USER_TO_GROUP_IN_CHANNEL_ID = welcome_to_group_channel_id
-            logging.debug('Welcome Group Channel ID: [' + WELCOME_USER_TO_GROUP_IN_CHANNEL_ID + ']')
-        else:
-            welcome_to_group_channel_id = WELCOME_USER_TO_GROUP_IN_CHANNEL_ID
-
-        if welcome_to_group_channel_id != '':
-            user_name = get_user_name_from_id(user_id)
-
-            data_to_channel = {
-                'token': BOT_TOKEN,
-                'channel': welcome_to_group_channel_id,
-                'text': "Welcome @" + user_name,
+        data = {
+                'token': TOKEN,
+                'channel': conversation_channel,
+                'text': MESSAGE,
                 'parse': 'full',
                 'as_user': 'true',
-                'unfurl_link': UNFURL.lower()
-            }
-
+                }
+                
+        logging.debug(data)
+        
             post_to_channel = requests.post("https://slack.com/api/chat.postMessage", data=data_to_channel)
             logging.debug(post_to_channel.json())
             logging.debug('\033[91m' + "WELCOME SENT SENT TO " + user_name + '\033[0m')
 
+        if (UNFURL.lower() == "false"):
+          data.update({'unfurl_link': 'false'})
 
-# Connects to Slacks and initiates socket handshake
+        post_message_response = requests.post("https://slack.com/api/chat.postMessage", data=data)
+        logging.debug('\033[91m' + "HELLO SENT TO " + m["user"]["id"] + '\033[0m')
+
+    if is_direct_message(m):
+        logging.debug('DM RECEIVED')
+        user_id = m["user"]
+        user_message = m['text']
+        user_message = urllib.quote(user_message)
+
+        # Need to get the display name from the user_id
+        real_name = get_display_name(user_id)
+
+        #logging.DEBUG('SENDING MESSAGE: '+user_message+' TO USER '+real_name)
+        # Need to send a message to a channel
+        requests.get("https://slack.com/api/chat.postMessage?token="+CHANNEL_TOKEN+"&channel="+RESPONSE_CHANNEL+"&text="+user_message+"&as_user=false&username="+real_name)
+
+#Connects to Slacks and initiates socket handshake
 def start_rtm():
-    start_request = requests.get("https://slack.com/api/rtm.connect?token=" + BOT_TOKEN, verify=False)
-    start_request = start_request.json()
-    logging.info(start_request)
-    start_request = start_request["url"]
-    return start_request
+
+    r = requests.get("https://slack.com/api/rtm.start?token="+TOKEN, verify=False)
+    r = r.json()
+    logging.info(r)
+    r = r["url"]
+    return r
 
 
 def on_message(ws, message):
